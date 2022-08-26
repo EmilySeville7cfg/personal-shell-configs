@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# shellcheck disable=SC2155,1090
+
+# Recreates current repo by removing all files from current directory and cloning repo again.
+__git_repo_recreate() {
+  local -i SUCCESS=0
+  local -i WRONG_INPUT=1
+
+  if [[ ! -d .git ]]
+  then
+    echo -e "❌ Can't recreate .git repo from remote because $BOLD_FBLACK'$PWD'$RESET doesn't contain .git folder." >&2
+    return $WRONG_INPUT
+  fi
+
+  local remote="$(git config --get remote.origin.url)"
+  if [[ $remote == "" ]]
+  then
+    echo -e "❌ Can't recreate .git repo from remote because $BOLD_FBLACK'$PWD'$RESET repo hasn't $BOLD_FBLACK'origin'$RESET remote configured." >&2
+    return $WRONG_INPUT
+  fi
+
+  rm -rf .git
+  rm -rf -- * .* &> /dev/null
+  git clone "$remote" .
+
+  return $SUCCESS
+}
