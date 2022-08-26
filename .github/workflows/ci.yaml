@@ -1,0 +1,15 @@
+name: CI
+on:
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  check-yaml:
+    uses:
+      EmilySeville7cfg/personal-automation-helpers/.github/workflows/check-yaml.yaml@v1.1.0
+  check-markdown:
+    uses:
+      EmilySeville7cfg/personal-automation-helpers/.github/workflows/check-markdown.yaml@v1.1.0
+    with:
+      config-name: base
