@@ -223,12 +223,26 @@ error() {
   echo -e "$output"
 }
 
-sample() {
-  info "my text" 2
-  warn "my text" 2
-  error "my text" 2
+
+__core_function_load_message_color_defaults() {
+  INFO_COLOR="${INFO_COLOR:-green}"
+  WARN_COLOR="${WARN_COLOR:-yellow}"
+  ERROR_COLOR="${ERROR_COLOR:-red}"
 }
 
-sample
+declare config_name="$HOME/bash-settings.yml"
 
-#echo "$(background red)Hi$(background none)"
+if ! which yq > /dev/null; then
+  warn "no 'yq' command found to load info, warn, error colors; defaults have been loaded"
+  __core_function_load_message_color_defaults
+elif [[ ! -e "$config_name" ]]; then
+  warn "no '$config_name' file found to load info, warn, error colors; defaults have been loaded"
+  __core_function_load_message_color_defaults
+else
+  INFO_COLOR="$(yq ".messages.info.foreground" "$config_name")"
+  WARN_COLOR="$(yq ".messages.warn.foreground" "$config_name")"
+  ERROR_COLOR="$(yq ".messages.error.foreground" "$config_name")"
+  __core_function_load_message_color_defaults # Some value can be missing in config in which case default value must be used.
+fi
+
+unset config_name
