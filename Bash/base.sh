@@ -166,6 +166,21 @@ background() {
 }
 
 
+colorize() {
+  [[ -n "$2" ]] && {
+    __core_function_failure_with_invalid_argument_error
+    return $FAILURE_WITH_INVALID_ARGUMENT
+  }
+
+  declare output=" $1 "
+  output=${output// true / $(raw_foreground cyan)true$(raw_foreground none) }
+  output=${output// false / $(raw_foreground cyan)false$(raw_foreground none) }
+  output=${output//\'/$(raw_foreground yellow)\'$(raw_foreground none)}
+  output=${output//\"/$(raw_foreground yellow)\"$(raw_foreground none)}
+
+  echo -n "${output:1:${#output} - 2}"
+}
+
 info() {
   declare arguments=("$@")
   declare output
@@ -181,7 +196,8 @@ info() {
 
   output=${output/__core_function_info/$(raw_foreground magenta)$(caller_function_name)$(raw_foreground none)}
   output=${output//:/$(raw_foreground red):$(raw_foreground none)}
-  output=${output/ info/$(raw_foreground blue) info$(raw_foreground none)}
+  output=${output/ info/ $(raw_foreground "$INFO_FOREGROUND_COLOR")$(raw_background "$INFO_BACKGROUND_COLOR")info$(raw_foreground none)}
+  output="$(colorize "$output")"
   echo -e "$output"
 }
 
@@ -200,7 +216,8 @@ warn() {
 
   output=${output/__core_function_warn/$(raw_foreground magenta)$(caller_function_name)$(raw_foreground none)}
   output=${output//:/$(raw_foreground red):$(raw_foreground none)}
-  output=${output/ warn/$(raw_foreground yellow) warn$(raw_foreground none)}
+  output=${output/ warn/ $(raw_foreground "$WARN_FOREGROUND_COLOR")$(raw_background "$WARN_BACKGROUND_COLOR")warn$(raw_foreground none)}
+  output="$(colorize "$output")"
   echo -e "$output"
 }
 
@@ -219,29 +236,74 @@ error() {
 
   output=${output/__core_function_error/$(raw_foreground magenta)$(caller_function_name)$(raw_foreground none)}
   output=${output//:/$(raw_foreground red):$(raw_foreground none)}
-  output=${output/ error/$(raw_foreground red) error$(raw_foreground none)}
+  output=${output/ error/ $(raw_foreground "$ERROR_FOREGROUND_COLOR")$(raw_background "$ERROR_BACKGROUND_COLOR")error$(raw_foreground none)}
+  output="$(colorize "$output")"
   echo -e "$output"
 }
 
 
-__core_function_load_message_color_defaults() {
-  INFO_COLOR="${INFO_COLOR:-green}"
-  WARN_COLOR="${WARN_COLOR:-yellow}"
-  ERROR_COLOR="${ERROR_COLOR:-red}"
+existing_config_name() {
+  declare config_name="$1"
+
+  if [[ -e "$config_name.yml" ]]; then
+    config_name+=".yml"
+    echo "$config_name"
+  elif [[ -e "$config_name.json" ]]; then
+    config_name+=".json"
+    echo "$config_name"
+  else
+    error "no '$config_name.yml' or '$config_name.json' file found"
+    exit "$FAILURE_WITH_INVALID_ARGUMENT"
+  fi
 }
 
-declare config_name="$HOME/bash-settings.yml"
+__core_function_load_message_color_defaults() {
+  INFO_FOREGROUND_COLOR="${INFO_FOREGROUND_COLOR:-green}"
+  WARN_FOREGROUND_COLOR="${WARN_FOREGROUND_COLOR:-yellow}"
+  ERROR_FOREGROUND_COLOR="${ERROR_FOREGROUND_COLOR:-red}"
+
+  INFO_BACKGROUND_COLOR="${INFO_BACKGROUND_COLOR:-white}"
+  WARN_BACKGROUND_COLOR="${WARN_BACKGROUND_COLOR:-white}"
+  ERROR_BACKGROUND_COLOR="${ERROR_BACKGROUND_COLOR:-white}"
+}
+
+__core_function_convert_message_colors_to_string() {
+  echo -n "messages:
+  info:
+    foreground: $INFO_FOREGROUND_COLOR
+    background: $INFO_BACKGROUND_COLOR
+  warn:
+    foreground: $WARN_FOREGROUND_COLOR
+    background: $WARN_BACKGROUND_COLOR
+  error:
+    foreground: $ERROR_FOREGROUND_COLOR
+    background: $ERROR_BACKGROUND_COLOR"
+}
+
+declare config_name="$HOME/bash-settings"
 
 if ! which yq > /dev/null; then
-  warn "no 'yq' command found to load info, warn, error colors; defaults have been loaded"
   __core_function_load_message_color_defaults
-elif [[ ! -e "$config_name" ]]; then
-  warn "no '$config_name' file found to load info, warn, error colors; defaults have been loaded"
+  warn "no 'yq' command found to load info, warn, error colors; defaults have been loaded:
+$(__core_function_convert_message_colors_to_string)"
+elif [[ ! -e "$config_name.yml" && ! -e "$config_name.json" ]]; then
   __core_function_load_message_color_defaults
+  warn "no '$config_name.yml' or '$config_name.json' file found to load info, warn, error colors; defaults have been loaded:
+$(__core_function_convert_message_colors_to_string)"
+elif [[ -e "$config_name.yml" && -e "$config_name.json" ]]; then
+  __core_function_load_message_color_defaults
+  warn "both '$config_name.yml' and '$config_name.json' files found, leave one to load settings from; defaults have been loaded:
+$(__core_function_convert_message_colors_to_string)"
 else
-  INFO_COLOR="$(yq ".messages.info.foreground" "$config_name")"
-  WARN_COLOR="$(yq ".messages.warn.foreground" "$config_name")"
-  ERROR_COLOR="$(yq ".messages.error.foreground" "$config_name")"
+  existing_config_name="$(existing_config_name "$HOME/bash-settings")"
+  INFO_FOREGROUND_COLOR="$(yq '.messages.info.foreground // ""' "$existing_config_name")"
+  WARN_FOREGROUND_COLOR="$(yq '.messages.warn.foreground // ""' "$existing_config_name")"
+  ERROR_FOREGROUND_COLOR="$(yq '.messages.error.foreground // ""' "$existing_config_name")"
+
+  INFO_BACKGROUND_COLOR="$(yq '.messages.info.background // ""' "$existing_config_name")"
+  WARN_BACKGROUND_COLOR="$(yq '.messages.warn.background // ""' "$existing_config_name")"
+  ERROR_BACKGROUND_COLOR="$(yq '.messages.error.background // ""' "$existing_config_name")"
+
   __core_function_load_message_color_defaults # Some value can be missing in config in which case default value must be used.
 fi
 
